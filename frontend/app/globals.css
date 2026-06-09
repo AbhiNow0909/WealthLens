@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0F1117;
+  --surface: #1A1D27;
+  --border: #2A2D3A;
+  --accent: #4F8EF7;
+  --gain: #22C55E;
+  --loss: #EF4444;
+  --warn: #F59E0B;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-gain: var(--gain);
+  --color-loss: var(--loss);
+  --color-warn: var(--warn);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html, body {
+  background-color: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* All numbers use monospace for decimal alignment */
+.tabular-nums {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
