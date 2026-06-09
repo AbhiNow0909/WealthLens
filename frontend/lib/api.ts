@@ -1,4 +1,4 @@
-import { createClient } from "./supabase";
+import { createClient } from "./supabase-browser";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 

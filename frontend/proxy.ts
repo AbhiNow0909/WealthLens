@@ -1,47 +1,35 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 
-export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/signup");
-
-  let response = NextResponse.next({ request });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
+// Optimistic session check: look for any Supabase auth token cookie.
+// Real auth verification happens in individual Server Components via getUser().
+function hasSessionCookie(request: NextRequest): boolean {
+  const cookieName = `sb-${
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/\/\/([^.]+)\./)?.[1] ?? ""
+  }-auth-token`;
+  // Supabase can also split the token across numbered chunks
+  return (
+    request.cookies.has(cookieName) ||
+    request.cookies.has(`${cookieName}.0`)
   );
+}
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const isAuthRoute =
+    pathname.startsWith("/login") || pathname.startsWith("/signup");
 
-  if (!user && !isAuthRoute) {
+  const loggedIn = hasSessionCookie(request);
+
+  if (!loggedIn && !isAuthRoute) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (user && isAuthRoute) {
+  if (loggedIn && isAuthRoute) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {
