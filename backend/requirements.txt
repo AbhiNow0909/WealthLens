@@ -1,6 +1,7 @@
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
 pdfplumber==0.11.4
+casparser==1.1.0
 pandas==2.2.3
 numpy==2.1.3
 scipy==1.14.1

@@ -10,7 +10,7 @@ import pdfplumber
 
 from services.auth_middleware import get_current_user
 from services.supabase_client import get_supabase
-from services.cas_parser_service import parse_cas_pdf
+from services.cas_parser_service import parse_cas_pdf, PasswordError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -98,11 +98,22 @@ async def upload_cas(
     # 3. Parse the PDF
     try:
         cas = parse_cas_pdf(pdf_bytes, password=password)
+    except PasswordError:
+        supabase.table("cas_uploads").update({"status": "failed"}).eq("id", upload_id).execute()
+        supabase.storage.from_("cas-pdfs").remove([storage_path])
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Incorrect PDF password. "
+                "NSDL CAS: use your registered email address. "
+                "CAMS / KFintech CAS: use your PAN number (uppercase)."
+            ),
+        )
     except Exception as exc:
         logger.exception("CAS parse error: %s", exc)
         supabase.table("cas_uploads").update({"status": "failed"}).eq("id", upload_id).execute()
         supabase.storage.from_("cas-pdfs").remove([storage_path])
-        if "PDFPasswordIncorrect" in type(exc).__name__ or "password" in str(exc).lower():
+        if "password" in str(exc).lower():
             raise HTTPException(
                 status_code=422,
                 detail=(
@@ -113,21 +124,51 @@ async def upload_cas(
             )
         raise HTTPException(status_code=422, detail=f"Could not parse CAS PDF: {exc}")
 
-    # 4. Upsert holdings
-    total_transactions = 0
+    # 4. Aggregate holdings by ISIN.
+    # The same fund can be held across multiple folios; the holdings table is
+    # unique on (user_id, isin), so we sum units/cost/value across folios into a
+    # single row per fund (matching how the CAS Portfolio Summary reports totals).
+    aggregated: dict[str, dict] = {}
     for h in cas.holdings:
-        # Upsert holding row (unique on user_id + isin)
+        key = h.isin or f"UNKNOWN_{h.folio_number}"
+        if key not in aggregated:
+            aggregated[key] = {
+                "user_id": user_id,
+                "isin": key,
+                "scheme_name": h.scheme_name,
+                "amfi_code": h.amfi_code or None,
+                "folios": set(),
+                "units_held": 0.0,
+                "current_nav": h.current_nav,
+                "current_value": 0.0,
+                "invested_value": 0.0,
+            }
+        agg = aggregated[key]
+        agg["folios"].add(h.folio_number)
+        agg["units_held"] += h.units_held
+        agg["current_value"] += h.current_value
+        agg["invested_value"] += h.invested_value
+        # current_nav is identical across folios of the same fund; keep any non-zero
+        if h.current_nav:
+            agg["current_nav"] = h.current_nav
+        if not agg["amfi_code"] and h.amfi_code:
+            agg["amfi_code"] = h.amfi_code
+
+    # Upsert one row per fund
+    for key, agg in aggregated.items():
+        units = agg["units_held"]
+        invested = agg["invested_value"]
         holding_data = {
-            "user_id": user_id,
-            "isin": h.isin or f"UNKNOWN_{h.folio_number}",
-            "scheme_name": h.scheme_name,
-            "amfi_code": h.amfi_code or None,
-            "folio_number": h.folio_number,
-            "units_held": h.units_held,
-            "average_nav": h.average_nav,
-            "current_nav": h.current_nav,
-            "current_value": h.current_value,
-            "invested_value": h.invested_value,
+            "user_id": agg["user_id"],
+            "isin": agg["isin"],
+            "scheme_name": agg["scheme_name"],
+            "amfi_code": agg["amfi_code"],
+            "folio_number": ", ".join(sorted(agg["folios"])),
+            "units_held": round(units, 4),
+            "average_nav": round(invested / units, 4) if units > 0 else 0.0,
+            "current_nav": agg["current_nav"],
+            "current_value": round(agg["current_value"], 2),
+            "invested_value": round(invested, 2),
             "last_updated": date.today().isoformat(),
         }
         try:
@@ -135,14 +176,16 @@ async def upload_cas(
                 holding_data, on_conflict="user_id,isin"
             ).execute()
         except Exception as exc:
-            logger.warning("Failed to upsert holding %s: %s", h.isin, exc)
-            continue
+            logger.warning("Failed to upsert holding %s: %s", key, exc)
 
-        # Insert transactions (skip duplicates on date + type + units)
+    # Insert transactions — kept per-folio (transactions table is folio-scoped)
+    total_transactions = 0
+    for h in cas.holdings:
+        isin_key = h.isin or f"UNKNOWN_{h.folio_number}"
         for t in h.transactions:
             txn_data = {
                 "user_id": user_id,
-                "isin": h.isin or f"UNKNOWN_{h.folio_number}",
+                "isin": isin_key,
                 "folio_number": h.folio_number,
                 "transaction_date": t.transaction_date,
                 "transaction_type": t.transaction_type,
@@ -168,7 +211,7 @@ async def upload_cas(
     return UploadResponse(
         upload_id=upload_id,
         status="parsed",
-        funds_found=len(cas.holdings),
+        funds_found=len(aggregated),
         transactions_found=total_transactions,
     )
 
