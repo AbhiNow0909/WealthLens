@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from services.auth_middleware import get_current_user
+from services.export_service import generate_report
 from agents.graph import portfolio_graph
 from agents.state import PortfolioState
 
@@ -19,6 +20,16 @@ class AgentResponse(BaseModel):
     response_text: str
     export_url: str | None = None
     report_id: str | None = None
+
+
+class ExportRequest(BaseModel):
+    format: str  # excel | word | ppt
+
+
+class ExportResponse(BaseModel):
+    export_url: str | None = None
+    filename: str
+    format: str
 
 
 def _initial_state(user_id: str, prompt: str) -> PortfolioState:
@@ -62,4 +73,29 @@ async def run_agent(
         response_text=final.get("response_text", ""),
         export_url=final.get("export_path"),
         report_id=result.get("report_id"),
+    )
+
+
+@router.post("/export", response_model=ExportResponse)
+async def export_report(
+    body: ExportRequest,
+    user: dict = Depends(get_current_user),
+):
+    fmt = (body.format or "").lower()
+    if fmt not in ("excel", "word", "ppt"):
+        raise HTTPException(status_code=400, detail="format must be excel, word or ppt")
+
+    try:
+        result = await generate_report(user["id"], fmt)
+    except Exception as exc:
+        logger.exception("Report export failed: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Could not generate the report. Ensure a 'reports' storage bucket exists.",
+        )
+
+    return ExportResponse(
+        export_url=result.get("export_url"),
+        filename=result.get("filename", "report"),
+        format=fmt,
     )

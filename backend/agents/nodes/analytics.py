@@ -263,8 +263,12 @@ def nav_rows_to_series(rows: list[dict]) -> pd.Series:
 
 
 def daily_returns(nav_series: pd.Series) -> pd.Series:
-    """Simple daily pct-change returns from a NAV series."""
-    return nav_series.sort_index().pct_change().dropna()
+    """
+    Simple daily pct-change returns from a NAV series. A zero prior NAV makes
+    pct_change return inf, so we drop inf/NaN to keep downstream stats finite.
+    """
+    returns = nav_series.sort_index().pct_change()
+    return returns.replace([np.inf, -np.inf], np.nan).dropna()
 
 
 # ---------------------------------------------------------------------------

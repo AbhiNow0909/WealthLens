@@ -11,6 +11,7 @@ to match the frontend formatters. Beta/Sharpe/Sortino are plain ratios.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Optional
 
 import pandas as pd
@@ -36,10 +37,26 @@ BENCHMARK_INDEX = "nifty50"
 
 
 def _pct(value: Optional[float]) -> Optional[float]:
-    """Fraction → percent, rounded to 4 dp. Passes through None."""
+    """Fraction → percent, rounded to 4 dp. None for null/non-finite (NaN/inf)."""
     if value is None:
         return None
-    return round(value * 100.0, 4)
+    f = float(value)
+    if not math.isfinite(f):
+        return None
+    return round(f * 100.0, 4)
+
+
+def _num(value: Optional[float], decimals: int = 4) -> Optional[float]:
+    """Round a ratio metric; None for null/non-finite so JSON stays valid."""
+    if value is None:
+        return None
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(f):
+        return None
+    return round(f, decimals)
 
 
 # ---------------------------------------------------------------------------
@@ -135,9 +152,9 @@ def _compute_one_fund(
         "xirr": _pct(xirr),
         **trailing,
         "alpha": _pct(alpha),
-        "beta": round(beta, 4),
-        "sharpe_ratio": round(sharpe, 4),
-        "sortino_ratio": round(sortino, 4),
+        "beta": _num(beta),
+        "sharpe_ratio": _num(sharpe),
+        "sortino_ratio": _num(sortino),
         "max_drawdown": _pct(max_dd),
         "expense_ratio": 0.0,  # not available from MFApi; placeholder for Step 5
     }

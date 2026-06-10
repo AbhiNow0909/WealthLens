@@ -45,6 +45,13 @@ export const runAgent = (prompt: string) =>
     body: JSON.stringify({ prompt }),
   });
 
+export type ExportFormat = "excel" | "word" | "ppt";
+export const exportReport = (format: ExportFormat) =>
+  apiFetch<ExportResult>("/agent/export", {
+    method: "POST",
+    body: JSON.stringify({ format }),
+  });
+
 // --- Types ---
 export interface Holding {
   id: string;
@@ -84,9 +91,9 @@ export interface FundMetrics {
   trailing_3y: number | null;
   trailing_5y: number | null;
   alpha: number | null;
-  beta: number;
-  sharpe_ratio: number;
-  sortino_ratio: number;
+  beta: number | null;
+  sharpe_ratio: number | null;
+  sortino_ratio: number | null;
   max_drawdown: number | null;
   expense_ratio: number;
 }
@@ -112,4 +119,10 @@ export interface AgentResponse {
   response_text: string;
   export_url: string | null;
   report_id: string;
+}
+
+export interface ExportResult {
+  export_url: string | null;
+  filename: string;
+  format: string;
 }
