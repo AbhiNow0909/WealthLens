@@ -36,3 +36,18 @@ export function formatDate(dateStr: string): string {
 export function formatNumber(value: number, decimals = 2): string {
   return value.toFixed(decimals);
 }
+
+// Unit balance: 3 decimals, grouped (e.g. 63,479.738)
+export function formatUnits(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  return new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  }).format(value);
+}
+
+// NAV: full ₹ with 2 decimals (e.g. ₹874.67)
+export function formatNav(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  return `₹${value.toFixed(2)}`;
+}

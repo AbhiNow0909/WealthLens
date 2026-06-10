@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from services.auth_middleware import get_current_user
+from services.rate_limit import rate_limit
 from services.export_service import generate_report
 from agents.graph import portfolio_graph
 from agents.state import PortfolioState
@@ -53,7 +53,7 @@ def _initial_state(user_id: str, prompt: str) -> PortfolioState:
 @router.post("/run", response_model=AgentResponse)
 async def run_agent(
     body: AgentRequest,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(rate_limit(max_requests=10, window_seconds=3600)),
 ):
     prompt = (body.prompt or "").strip()
     if not prompt:
@@ -79,7 +79,7 @@ async def run_agent(
 @router.post("/export", response_model=ExportResponse)
 async def export_report(
     body: ExportRequest,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(rate_limit(max_requests=10, window_seconds=3600)),
 ):
     fmt = (body.format or "").lower()
     if fmt not in ("excel", "word", "ppt"):

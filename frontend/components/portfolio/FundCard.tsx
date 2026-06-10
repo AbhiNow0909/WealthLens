@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Holding, NavPoint } from "@/lib/api";
-import { formatCompactCurrency, formatPercent } from "@/lib/formatters";
+import { formatCompactCurrency, formatPercent, formatUnits, formatNav } from "@/lib/formatters";
 import Sparkline from "@/components/charts/Sparkline";
 
 interface Props {
@@ -42,7 +42,7 @@ export default function FundCard({ holding, navHistory }: Props) {
             {formatCompactCurrency(holding.current_value)}
           </p>
           <p className="text-xs text-[var(--text-secondary)] tabular-nums mt-0.5">
-            {holding.units_held?.toFixed(3)} units · ₹{holding.current_nav?.toFixed(2)}
+            {formatUnits(holding.units_held)} units · {formatNav(holding.current_nav)}
           </p>
         </div>
       </div>

@@ -174,11 +174,20 @@ async def run_nav_sync() -> dict:
             except Exception as exc:
                 logger.warning("benchmark_history upsert failed at batch %d: %s", i, exc)
 
+    # --- 7. Prune old report exports from Storage ---
+    try:
+        from services.export_service import cleanup_old_reports
+        summary["reports_deleted"] = cleanup_old_reports()
+    except Exception as exc:
+        logger.warning("Report cleanup failed: %s", exc)
+        summary["reports_deleted"] = 0
+
     logger.info(
-        "NAV sync complete — %d funds, %d nav rows, %d benchmark rows, %d errors",
+        "NAV sync complete — %d funds, %d nav rows, %d benchmark rows, %d reports pruned, %d errors",
         summary["funds_synced"],
         summary["nav_rows_upserted"],
         summary["benchmark_rows_upserted"],
+        summary.get("reports_deleted", 0),
         len(summary["errors"]),
     )
     return summary
