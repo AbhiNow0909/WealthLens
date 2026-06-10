@@ -2,9 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getHoldings, getPortfolioSummary, syncNavs, type Holding, type PortfolioSummary } from "@/lib/api";
+import {
+  getHoldings,
+  getPortfolioSummary,
+  getNavHistory,
+  syncNavs,
+  type Holding,
+  type PortfolioSummary,
+  type NavPoint,
+} from "@/lib/api";
 import { formatCompactCurrency, formatPercent } from "@/lib/formatters";
 import CASUploadDropzone from "@/components/portfolio/CASUploadDropzone";
+import PortfolioPieChart from "@/components/charts/PortfolioPieChart";
+import FundCard from "@/components/portfolio/FundCard";
 import { createClient } from "@/lib/supabase-browser";
 import Link from "next/link";
 
@@ -16,6 +26,7 @@ export default function DashboardClient({ userId: _ }: Props) {
   const router = useRouter();
   const [holdings, setHoldings] = useState<Holding[] | null>(null);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [navHistory, setNavHistory] = useState<Record<string, NavPoint[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -49,6 +60,11 @@ export default function DashboardClient({ userId: _ }: Props) {
       const [h, s] = await Promise.all([getHoldings(), getPortfolioSummary()]);
       setHoldings(h);
       setSummary(s);
+      // NAV history powers the sparklines — non-critical, so load it separately
+      // and don't fail the whole dashboard if it errors.
+      getNavHistory()
+        .then(setNavHistory)
+        .catch(() => setNavHistory({}));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load portfolio");
     } finally {
@@ -136,69 +152,30 @@ export default function DashboardClient({ userId: _ }: Props) {
               </div>
             )}
 
-            {/* Holdings table */}
-            <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
-                <h2 className="text-sm font-medium text-[var(--text-primary)]">
-                  Holdings ({holdings.length})
-                </h2>
-                <button
-                  onClick={() => setShowUpload((v) => !v)}
-                  className="text-xs text-[var(--accent)] hover:opacity-80 transition-opacity"
-                >
-                  {showUpload ? "Cancel" : "Update statement"}
-                </button>
+            {/* Allocation */}
+            {summary && summary.allocation?.length > 0 && (
+              <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-5 mb-8">
+                <h2 className="text-sm font-medium text-[var(--text-primary)] mb-4">Allocation</h2>
+                <PortfolioPieChart data={summary.allocation} />
               </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-[var(--text-secondary)] text-xs">
-                    <th className="text-left px-5 py-3 font-medium">Fund</th>
-                    <th className="text-right px-5 py-3 font-medium">Units</th>
-                    <th className="text-right px-5 py-3 font-medium">NAV</th>
-                    <th className="text-right px-5 py-3 font-medium">Current Value</th>
-                    <th className="text-right px-5 py-3 font-medium">Invested</th>
-                    <th className="text-right px-5 py-3 font-medium">Gain</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {holdings.map((h) => {
-                    const gain = (h.current_value ?? 0) - (h.invested_value ?? 0);
-                    const gainPct = h.invested_value > 0 ? (gain / h.invested_value) * 100 : 0;
-                    return (
-                      <tr
-                        key={h.id}
-                        className="border-t border-[var(--border)] hover:bg-white/5 transition-colors cursor-pointer"
-                        onClick={() => window.location.href = `/fund/${h.isin}`}
-                      >
-                        <td className="px-5 py-4">
-                          <p className="text-[var(--text-primary)] font-medium leading-tight">{h.scheme_name}</p>
-                          <p className="text-[var(--text-secondary)] text-xs mt-0.5">{h.isin}</p>
-                        </td>
-                        <td className="px-5 py-4 text-right tabular-nums text-[var(--text-primary)]">
-                          {h.units_held?.toFixed(3)}
-                        </td>
-                        <td className="px-5 py-4 text-right tabular-nums text-[var(--text-primary)]">
-                          ₹{h.current_nav?.toFixed(2)}
-                        </td>
-                        <td className="px-5 py-4 text-right tabular-nums text-[var(--text-primary)]">
-                          {formatCompactCurrency(h.current_value)}
-                        </td>
-                        <td className="px-5 py-4 text-right tabular-nums text-[var(--text-secondary)]">
-                          {formatCompactCurrency(h.invested_value)}
-                        </td>
-                        <td className={`px-5 py-4 text-right tabular-nums ${gain >= 0 ? "text-[var(--gain)]" : "text-[var(--loss)]"}`}>
-                          {formatPercent(gainPct)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            )}
+
+            {/* Holdings header */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-medium text-[var(--text-primary)]">
+                Holdings ({holdings.length})
+              </h2>
+              <button
+                onClick={() => setShowUpload((v) => !v)}
+                className="text-xs text-[var(--accent)] hover:opacity-80 transition-opacity"
+              >
+                {showUpload ? "Cancel" : "Update statement"}
+              </button>
             </div>
 
             {/* Inline CAS re-upload — only visible when toggled */}
             {showUpload && (
-              <div className="mt-6">
+              <div className="mb-6">
                 <CASUploadDropzone
                   onSuccess={() => {
                     setShowUpload(false);
@@ -207,6 +184,13 @@ export default function DashboardClient({ userId: _ }: Props) {
                 />
               </div>
             )}
+
+            {/* Fund cards grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {holdings.map((h) => (
+                <FundCard key={h.id} holding={h} navHistory={navHistory[h.isin] ?? []} />
+              ))}
+            </div>
           </>
         )}
       </div>

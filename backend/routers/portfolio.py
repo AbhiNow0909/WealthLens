@@ -230,6 +230,45 @@ async def get_holdings(user: dict = Depends(get_current_user)):
     return result.data
 
 
+@router.get("/nav-history")
+async def get_nav_history(user: dict = Depends(get_current_user)):
+    """
+    Last ~12 months of NAV history for each of the user's funds, for sparklines.
+    Returns { isin: [{nav_date, nav}, ...] } sorted ascending by date.
+    """
+    from datetime import timedelta
+
+    supabase = get_supabase()
+    holdings = (
+        supabase.table("holdings")
+        .select("isin")
+        .eq("user_id", user["id"])
+        .execute()
+        .data
+        or []
+    )
+    isins = [h["isin"] for h in holdings if h.get("isin")]
+    if not isins:
+        return {}
+
+    cutoff = (date.today() - timedelta(days=365)).isoformat()
+    rows = (
+        supabase.table("nav_history")
+        .select("isin,nav_date,nav")
+        .in_("isin", isins)
+        .gte("nav_date", cutoff)
+        .order("nav_date")
+        .execute()
+        .data
+        or []
+    )
+
+    history: dict[str, list[dict]] = {isin: [] for isin in isins}
+    for r in rows:
+        history.setdefault(r["isin"], []).append({"nav_date": r["nav_date"], "nav": r["nav"]})
+    return history
+
+
 @router.post("/debug-parse")
 async def debug_parse_pdf(
     file: UploadFile = File(...),

@@ -26,6 +26,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export const getHoldings = () => apiFetch<Holding[]>("/portfolio/holdings");
 export const getPortfolioSummary = () => apiFetch<PortfolioSummary>("/portfolio/summary");
 export const syncNavs = () => apiFetch<Record<string, unknown>>("/portfolio/sync-navs", { method: "POST" });
+export const getNavHistory = () => apiFetch<Record<string, NavPoint[]>>("/portfolio/nav-history");
 
 // --- Analytics ---
 export const getFundAnalytics = (isin: string) =>
@@ -62,6 +63,11 @@ export interface PortfolioSummary {
   total_gain_pct: number;
   xirr: number;
   allocation: { name: string; value: number }[];
+}
+
+export interface NavPoint {
+  nav_date: string;
+  nav: number;
 }
 
 export interface FundMetrics {
