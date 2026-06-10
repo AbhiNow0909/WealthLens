@@ -115,7 +115,7 @@ export default function DashboardClient({ userId: _ }: Props) {
           <>
             {/* Summary cards */}
             {summary && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
                 <SummaryCard label="Current Value" value={formatCompactCurrency(summary.total_value)} />
                 <SummaryCard label="Invested" value={formatCompactCurrency(summary.total_invested)} />
                 <SummaryCard
@@ -127,6 +127,11 @@ export default function DashboardClient({ userId: _ }: Props) {
                   label="Return"
                   value={formatPercent(summary.total_gain_pct)}
                   valueClass={summary.total_gain_pct >= 0 ? "text-[var(--gain)]" : "text-[var(--loss)]"}
+                />
+                <SummaryCard
+                  label="XIRR"
+                  value={summary.xirr ? formatPercent(summary.xirr) : "—"}
+                  valueClass={(summary.xirr ?? 0) >= 0 ? "text-[var(--gain)]" : "text-[var(--loss)]"}
                 />
               </div>
             )}

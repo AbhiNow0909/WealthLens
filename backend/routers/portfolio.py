@@ -11,6 +11,7 @@ import pdfplumber
 from services.auth_middleware import get_current_user
 from services.supabase_client import get_supabase
 from services.cas_parser_service import parse_cas_pdf, PasswordError
+from services.analytics_service import compute_portfolio_xirr
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -280,11 +281,18 @@ async def get_summary(user: dict = Depends(get_current_user)):
     total_gain = total_value - total_invested
     total_gain_pct = (total_gain / total_invested * 100) if total_invested > 0 else 0.0
 
+    try:
+        xirr = await compute_portfolio_xirr(user["id"])
+    except Exception as exc:
+        logger.warning("Portfolio XIRR computation failed: %s", exc)
+        xirr = 0.0
+
     return {
         "total_value": round(total_value, 2),
         "total_invested": round(total_invested, 2),
         "total_gain": round(total_gain, 2),
         "total_gain_pct": round(total_gain_pct, 2),
+        "xirr": xirr,
         "holdings_count": len(rows),
         "allocation": [
             {"name": r["scheme_name"], "value": r["current_value"] or 0}

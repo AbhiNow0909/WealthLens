@@ -1,13 +1,19 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+
 from services.auth_middleware import get_current_user
+from services.analytics_service import (
+    get_all_fund_metrics,
+    get_fund_metrics,
+    get_trailing_returns_table,
+)
 
 router = APIRouter()
 
 
 @router.get("/trailing-returns")
 async def get_trailing_returns(user: dict = Depends(get_current_user)):
-    # TODO: Step 5 — return trailing returns table for all portfolio funds
-    return []
+    """Trailing returns (1W–5Y) table for every fund in the portfolio."""
+    return await get_trailing_returns_table(user["id"])
 
 
 @router.get("/compare")
@@ -15,11 +21,17 @@ async def compare_funds(
     isins: str = Query(..., description="Comma-separated ISINs"),
     user: dict = Depends(get_current_user),
 ):
-    # TODO: Step 5 — return risk metrics for selected funds
-    return []
+    """Full risk + return metrics for the selected funds, side by side."""
+    isin_list = [s.strip() for s in isins.split(",") if s.strip()]
+    if not isin_list:
+        raise HTTPException(status_code=400, detail="No ISINs provided")
+    return await get_all_fund_metrics(user["id"], isins=isin_list)
 
 
 @router.get("/{isin}")
 async def get_fund_analytics(isin: str, user: dict = Depends(get_current_user)):
-    # TODO: Step 5 — return full metrics for one fund
-    return {}
+    """Full metrics for a single fund."""
+    metrics = await get_fund_metrics(user["id"], isin)
+    if not metrics:
+        raise HTTPException(status_code=404, detail="Fund not found in your portfolio")
+    return metrics

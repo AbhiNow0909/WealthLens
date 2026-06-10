@@ -117,7 +117,9 @@ async def run_nav_sync() -> dict:
         for i in range(0, len(records), _BATCH):
             batch = records[i : i + _BATCH]
             try:
-                supabase.table("nav_history").upsert(batch, ignore_duplicates=True).execute()
+                supabase.table("nav_history").upsert(
+                    batch, on_conflict="isin,nav_date", ignore_duplicates=True
+                ).execute()
                 summary["nav_rows_upserted"] += len(batch)
             except Exception as exc:
                 logger.warning("nav_history upsert failed for %s batch %d: %s", isin, i, exc)
@@ -157,14 +159,17 @@ async def run_nav_sync() -> dict:
     )
     bench_since = None
     if bench_existing.data:
-        bench_since = date.fromisoformat(bench_existing.data[0]["price_date"])
+        # Fetch only dates strictly after the last one we have (avoid duplicate-key)
+        bench_since = date.fromisoformat(bench_existing.data[0]["price_date"]) + timedelta(days=1)
 
     bench_rows = await fetch_benchmark_history(since_date=bench_since)
     if bench_rows:
         for i in range(0, len(bench_rows), _BATCH):
             batch = bench_rows[i : i + _BATCH]
             try:
-                supabase.table("benchmark_history").upsert(batch, ignore_duplicates=True).execute()
+                supabase.table("benchmark_history").upsert(
+                    batch, on_conflict="index_name,price_date", ignore_duplicates=True
+                ).execute()
                 summary["benchmark_rows_upserted"] += len(batch)
             except Exception as exc:
                 logger.warning("benchmark_history upsert failed at batch %d: %s", i, exc)

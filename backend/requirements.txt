@@ -19,3 +19,4 @@ pydantic==2.10.3
 pydantic-settings==2.6.1
 python-multipart==0.0.12
 yfinance==0.2.50
+pytest==9.0.3

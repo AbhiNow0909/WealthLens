@@ -13,4 +13,5 @@ class PortfolioState(TypedDict):
     quality_check_passed: bool
     retry_count: int
     final_response: dict
+    report_id: str | None
     error: str | None
