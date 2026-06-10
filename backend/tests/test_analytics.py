@@ -16,6 +16,7 @@ from agents.nodes.analytics import (
     build_cashflows,
     compute_alpha_beta,
     compute_max_drawdown,
+    compute_rolling_returns,
     compute_sharpe,
     compute_sortino,
     compute_trailing_return,
@@ -86,6 +87,33 @@ def test_trailing_return_none_when_insufficient_history():
     idx = pd.date_range("2024-01-01", periods=10, freq="D")
     nav = pd.Series(range(100, 110), index=idx, dtype="float64")
     assert compute_trailing_return(nav, 365) is None
+
+
+# ---------------------------------------------------------------------------
+# Rolling returns
+# ---------------------------------------------------------------------------
+
+def test_rolling_returns_flat_series_is_zero():
+    idx = pd.date_range("2022-01-01", periods=400, freq="D")
+    nav = pd.Series(100.0, index=idx)
+    res = compute_rolling_returns(nav, window_days=365)
+    # Points exist only for the 35 days that have a value 365 days earlier
+    assert len(res) == 35
+    assert all(abs(r) < 1e-12 for _, r in res)
+
+
+def test_rolling_returns_known_endpoint():
+    idx = pd.date_range("2022-01-01", periods=400, freq="D")
+    nav = pd.Series(100.0, index=idx)
+    nav.iloc[-1] = 120.0  # last day 20% above its value 365 days prior
+    res = compute_rolling_returns(nav, window_days=365)
+    assert res[-1][1] == pytest.approx(0.20, abs=1e-9)
+
+
+def test_rolling_returns_empty_for_short_series():
+    idx = pd.date_range("2024-01-01", periods=10, freq="D")
+    nav = pd.Series(range(100, 110), index=idx, dtype="float64")
+    assert compute_rolling_returns(nav) == []
 
 
 # ---------------------------------------------------------------------------

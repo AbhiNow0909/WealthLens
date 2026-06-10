@@ -11,7 +11,6 @@ to match the frontend formatters. Beta/Sharpe/Sortino are plain ratios.
 from __future__ import annotations
 
 import logging
-from datetime import date
 from typing import Optional
 
 import pandas as pd
@@ -22,6 +21,7 @@ from agents.nodes.analytics import (
     build_cashflows,
     compute_alpha_beta,
     compute_max_drawdown,
+    compute_rolling_returns,
     compute_sharpe,
     compute_sortino,
     compute_trailing_return,
@@ -186,6 +186,19 @@ async def get_fund_metrics(user_id: str, isin: str) -> dict:
     metrics = _compute_one_fund(holding, txns, benchmark_returns)
     _persist_metrics(user_id, metrics)
     return metrics
+
+
+async def get_rolling_returns(isin: str) -> list[dict]:
+    """
+    Rolling 1-year return time series for a fund (for the fund detail chart).
+    Returns [{date: 'YYYY-MM-DD', value: percent}] sorted ascending by date.
+    """
+    nav_series = _load_nav_series(isin)
+    series = compute_rolling_returns(nav_series, window_days=365)
+    return [
+        {"date": d.strftime("%Y-%m-%d"), "value": round(r * 100.0, 4)}
+        for d, r in series
+    ]
 
 
 async def get_all_fund_metrics(user_id: str, isins: Optional[list[str]] = None) -> list[dict]:

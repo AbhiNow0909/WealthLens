@@ -4,6 +4,7 @@ from services.auth_middleware import get_current_user
 from services.analytics_service import (
     get_all_fund_metrics,
     get_fund_metrics,
+    get_rolling_returns,
     get_trailing_returns_table,
 )
 
@@ -26,6 +27,12 @@ async def compare_funds(
     if not isin_list:
         raise HTTPException(status_code=400, detail="No ISINs provided")
     return await get_all_fund_metrics(user["id"], isins=isin_list)
+
+
+@router.get("/{isin}/rolling-returns")
+async def get_fund_rolling_returns(isin: str, user: dict = Depends(get_current_user)):
+    """Rolling 1-year return time series for a fund's detail chart."""
+    return await get_rolling_returns(isin)
 
 
 @router.get("/{isin}")

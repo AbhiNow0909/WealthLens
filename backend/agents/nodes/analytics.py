@@ -140,6 +140,42 @@ def compute_trailing_return(nav_series: pd.Series, days: int) -> Optional[float]
     return end_nav / start_nav - 1.0
 
 
+def compute_rolling_returns(
+    nav_series: pd.Series,
+    window_days: int = 365,
+    max_points: int = 300,
+) -> list[tuple[pd.Timestamp, float]]:
+    """
+    Trailing `window_days` simple return computed at each date in the series,
+    forming a time series (e.g. rolling 1-year returns). Returns a list of
+    (date, return_fraction), downsampled to at most `max_points` points.
+    """
+    nav_series = nav_series.dropna().sort_index()
+    n = len(nav_series)
+    if n < 2:
+        return []
+
+    dates = nav_series.index
+    values = nav_series.to_numpy()
+    date_ints = dates.astype(np.int64)  # ns since epoch
+    window_ns = window_days * 86_400 * 1_000_000_000
+
+    results: list[tuple[pd.Timestamp, float]] = []
+    for i in range(n):
+        target = date_ints[i] - window_ns
+        j = int(np.searchsorted(date_ints, target, side="right")) - 1
+        if j < 0:
+            continue
+        start = values[j]
+        if start > 0:
+            results.append((dates[i], float(values[i] / start - 1.0)))
+
+    if len(results) > max_points:
+        step = len(results) // max_points + 1
+        results = results[::step]
+    return results
+
+
 # ---------------------------------------------------------------------------
 # Risk metrics
 # ---------------------------------------------------------------------------

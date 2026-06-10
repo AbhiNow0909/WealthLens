@@ -35,6 +35,8 @@ export const compareFunds = (isins: string[]) =>
   apiFetch<FundMetrics[]>(`/analytics/compare?isins=${isins.join(",")}`);
 export const getTrailingReturns = () =>
   apiFetch<TrailingReturnsRow[]>("/analytics/trailing-returns");
+export const getRollingReturns = (isin: string) =>
+  apiFetch<RollingReturnPoint[]>(`/analytics/${isin}/rolling-returns`);
 
 // --- Agent ---
 export const runAgent = (prompt: string) =>
@@ -73,32 +75,37 @@ export interface NavPoint {
 export interface FundMetrics {
   isin: string;
   scheme_name: string;
-  xirr: number;
-  trailing_1w: number;
-  trailing_1m: number;
-  trailing_3m: number;
-  trailing_6m: number;
-  trailing_1y: number;
-  trailing_3y: number;
-  trailing_5y: number;
-  alpha: number;
+  xirr: number | null;
+  trailing_1w: number | null;
+  trailing_1m: number | null;
+  trailing_3m: number | null;
+  trailing_6m: number | null;
+  trailing_1y: number | null;
+  trailing_3y: number | null;
+  trailing_5y: number | null;
+  alpha: number | null;
   beta: number;
   sharpe_ratio: number;
   sortino_ratio: number;
-  max_drawdown: number;
+  max_drawdown: number | null;
   expense_ratio: number;
 }
 
 export interface TrailingReturnsRow {
   isin: string;
   name: string;
-  "1w": number;
-  "1m": number;
-  "3m": number;
-  "6m": number;
-  "1y": number;
-  "3y": number;
-  "5y": number;
+  "1w": number | null;
+  "1m": number | null;
+  "3m": number | null;
+  "6m": number | null;
+  "1y": number | null;
+  "3y": number | null;
+  "5y": number | null;
+}
+
+export interface RollingReturnPoint {
+  date: string;
+  value: number;
 }
 
 export interface AgentResponse {
