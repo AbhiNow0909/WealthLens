@@ -1,7 +1,7 @@
 import os
+import httpx
 from fastapi import HTTPException, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
 
 security = HTTPBearer()
 
@@ -9,24 +9,28 @@ security = HTTPBearer()
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Security(security),
 ) -> dict:
+    """
+    Validate the Supabase JWT by calling Supabase Auth directly.
+    Works for both RS256 (new projects) and HS256 (old projects).
+    """
     token = credentials.credentials
-    jwt_secret = os.environ.get("SUPABASE_JWT_SECRET", "")
-    try:
-        payload = jwt.decode(
-            token,
-            jwt_secret,
-            algorithms=["HS256"],
-            options={"verify_aud": False},
+    supabase_url = os.environ["SUPABASE_URL"]
+    api_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(
+            f"{supabase_url}/auth/v1/user",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "apikey": api_key,
+            },
         )
-        user_id: str = payload.get("sub")
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token: missing sub",
-            )
-        return {"id": user_id, "email": payload.get("email")}
-    except JWTError as exc:
+
+    if resp.status_code != 200:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {exc}",
+            detail="Invalid or expired session — please log in again",
         )
+
+    user = resp.json()
+    return {"id": user["id"], "email": user.get("email")}
