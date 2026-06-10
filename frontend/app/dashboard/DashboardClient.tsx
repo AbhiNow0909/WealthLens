@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getHoldings, getPortfolioSummary, type Holding, type PortfolioSummary } from "@/lib/api";
+import { getHoldings, getPortfolioSummary, syncNavs, type Holding, type PortfolioSummary } from "@/lib/api";
 import { formatCompactCurrency, formatPercent } from "@/lib/formatters";
 import CASUploadDropzone from "@/components/portfolio/CASUploadDropzone";
 import { createClient } from "@/lib/supabase-browser";
@@ -19,6 +19,24 @@ export default function DashboardClient({ userId: _ }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  async function handleSync() {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const result = await syncNavs();
+      const funds = result.funds_synced as number;
+      const rows = result.nav_rows_upserted as number;
+      setSyncMsg(`Updated ${funds} fund${funds !== 1 ? "s" : ""} · ${rows} NAV rows`);
+      await load();
+    } catch {
+      setSyncMsg("Sync failed — check backend logs");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function handleLogout() {
     const supabase = createClient();
@@ -59,6 +77,13 @@ export default function DashboardClient({ userId: _ }: Props) {
           <Link href="/compare" className="hover:text-[var(--text-primary)] transition-colors">Compare</Link>
           <Link href="/assistant" className="hover:text-[var(--text-primary)] transition-colors">Assistant</Link>
           <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="hover:text-[var(--text-primary)] transition-colors disabled:opacity-40"
+          >
+            {syncing ? "Syncing…" : "Refresh prices"}
+          </button>
+          <button
             onClick={handleLogout}
             className="hover:text-[var(--text-primary)] transition-colors"
           >
@@ -66,6 +91,12 @@ export default function DashboardClient({ userId: _ }: Props) {
           </button>
         </div>
       </nav>
+
+      {syncMsg && (
+        <div className="border-b border-[var(--border)] px-6 py-2 text-xs text-center text-[var(--text-secondary)]">
+          {syncMsg}
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {!hasHoldings ? (

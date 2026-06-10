@@ -213,6 +213,14 @@ async def debug_parse_pdf(
     }
 
 
+@router.post("/sync-navs")
+async def trigger_nav_sync(user: dict = Depends(get_current_user)):
+    """Manually trigger a full NAV sync — useful for testing without waiting for 23:00."""
+    from scheduler.daily_sync import run_nav_sync
+    result = await run_nav_sync()
+    return result
+
+
 @router.get("/summary")
 async def get_summary(user: dict = Depends(get_current_user)):
     supabase = get_supabase()

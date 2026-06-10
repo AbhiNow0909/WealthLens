@@ -25,6 +25,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 // --- Portfolio ---
 export const getHoldings = () => apiFetch<Holding[]>("/portfolio/holdings");
 export const getPortfolioSummary = () => apiFetch<PortfolioSummary>("/portfolio/summary");
+export const syncNavs = () => apiFetch<Record<string, unknown>>("/portfolio/sync-navs", { method: "POST" });
 
 // --- Analytics ---
 export const getFundAnalytics = (isin: string) =>
