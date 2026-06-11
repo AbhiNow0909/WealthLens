@@ -94,8 +94,10 @@ export interface FundMetrics {
   beta: number | null;
   sharpe_ratio: number | null;
   sortino_ratio: number | null;
+  treynor_ratio: number | null;
   max_drawdown: number | null;
-  expense_ratio: number;
+  expense_ratio: number | null;
+  turnover_ratio: number | null;
 }
 
 export interface TrailingReturnsRow {

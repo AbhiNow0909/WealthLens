@@ -224,6 +224,24 @@ def compute_sortino(returns: pd.Series, risk_free_rate: float = DEFAULT_RISK_FRE
     return float((excess.mean() / downside) * np.sqrt(TRADING_DAYS))
 
 
+def compute_treynor(
+    returns: pd.Series,
+    beta: float,
+    risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
+) -> float:
+    """
+    Treynor ratio: annualised excess return per unit of *market* risk (beta),
+    as a fraction. Unlike Sharpe (which divides by total volatility), Treynor
+    divides by beta — so it rewards return relative to systematic risk only.
+    Returns 0.0 when beta is ~0 or there is insufficient data.
+    """
+    returns = returns.dropna()
+    if len(returns) < 2 or beta is None or abs(beta) < 1e-6:
+        return 0.0
+    annual_return = returns.mean() * TRADING_DAYS
+    return float((annual_return - risk_free_rate) / beta)
+
+
 def compute_max_drawdown(nav_series: pd.Series) -> float:
     """Maximum peak-to-trough drawdown as a fraction (negative). 0.0 if empty."""
     nav_series = nav_series.dropna().sort_index()

@@ -10,6 +10,8 @@ import {
 } from "@/lib/api";
 import { formatPercent } from "@/lib/formatters";
 import RiskRadarChart from "@/components/charts/RiskRadarChart";
+import InfoTip from "@/components/ui/InfoTip";
+import { METRIC_INFO } from "@/lib/metricInfo";
 
 // Shared palette — fund colour is consistent across chips, radar and table.
 const COLORS = [
@@ -21,13 +23,15 @@ function fmtRatio(v: number | null | undefined): string {
   return v.toFixed(2);
 }
 
-const METRIC_ROWS: { label: string; fmt: (m: FundMetrics) => string }[] = [
-  { label: "Alpha", fmt: (m) => (m.alpha != null ? formatPercent(m.alpha) : "—") },
-  { label: "Beta", fmt: (m) => fmtRatio(m.beta) },
-  { label: "Sharpe Ratio", fmt: (m) => fmtRatio(m.sharpe_ratio) },
-  { label: "Sortino Ratio", fmt: (m) => fmtRatio(m.sortino_ratio) },
-  { label: "Max Drawdown", fmt: (m) => (m.max_drawdown != null ? formatPercent(m.max_drawdown) : "—") },
-  { label: "Expense Ratio", fmt: (m) => (m.expense_ratio ? `${m.expense_ratio.toFixed(2)}%` : "—") },
+const METRIC_ROWS: { label: string; info: string; fmt: (m: FundMetrics) => string }[] = [
+  { label: "Alpha", info: METRIC_INFO.alpha, fmt: (m) => (m.alpha != null ? formatPercent(m.alpha) : "—") },
+  { label: "Beta", info: METRIC_INFO.beta, fmt: (m) => fmtRatio(m.beta) },
+  { label: "Sharpe Ratio", info: METRIC_INFO.sharpe, fmt: (m) => fmtRatio(m.sharpe_ratio) },
+  { label: "Sortino Ratio", info: METRIC_INFO.sortino, fmt: (m) => fmtRatio(m.sortino_ratio) },
+  { label: "Treynor Ratio", info: METRIC_INFO.treynor, fmt: (m) => (m.treynor_ratio != null ? formatPercent(m.treynor_ratio) : "—") },
+  { label: "Max Drawdown", info: METRIC_INFO.maxDrawdown, fmt: (m) => (m.max_drawdown != null ? formatPercent(m.max_drawdown) : "—") },
+  { label: "Expense Ratio", info: METRIC_INFO.expense, fmt: (m) => (m.expense_ratio != null ? `${m.expense_ratio.toFixed(2)}%` : "—") },
+  { label: "Turnover Ratio", info: METRIC_INFO.turnover, fmt: (m) => (m.turnover_ratio != null ? `${m.turnover_ratio.toFixed(2)}%` : "—") },
 ];
 
 export default function CompareClient() {
@@ -182,7 +186,10 @@ export default function CompareClient() {
                     <tbody>
                       {METRIC_ROWS.map((row) => (
                         <tr key={row.label} className="border-b border-[var(--border)]">
-                          <td className="px-3 py-2.5 text-[var(--text-secondary)]">{row.label}</td>
+                          <td className="px-3 py-2.5 text-[var(--text-secondary)] whitespace-nowrap">
+                            {row.label}
+                            <InfoTip text={row.info} />
+                          </td>
                           {metrics.map((m) => (
                             <td key={m.isin} className="px-3 py-2.5 text-right tabular-nums text-[var(--text-primary)]">
                               {row.fmt(m)}

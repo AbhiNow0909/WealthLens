@@ -15,6 +15,8 @@ import {
 import { formatCompactCurrency, formatPercent } from "@/lib/formatters";
 import RollingReturnsChart from "@/components/charts/RollingReturnsChart";
 import TrailingReturnsTable from "@/components/charts/TrailingReturnsTable";
+import InfoTip from "@/components/ui/InfoTip";
+import { METRIC_INFO } from "@/lib/metricInfo";
 
 export default function FundDetailClient({ isin }: { isin: string }) {
   const [holding, setHolding] = useState<Holding | null>(null);
@@ -111,13 +113,15 @@ export default function FundDetailClient({ isin }: { isin: string }) {
         {/* Risk metrics grid */}
         <div>
           <h2 className="text-sm font-medium text-[var(--text-primary)] mb-3">Risk & Return Metrics</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <MetricCell label="Alpha" value={metrics?.alpha != null ? formatPercent(metrics.alpha) : "—"} />
-            <MetricCell label="Beta" value={fmtRatio(metrics?.beta)} />
-            <MetricCell label="Sharpe" value={fmtRatio(metrics?.sharpe_ratio)} />
-            <MetricCell label="Sortino" value={fmtRatio(metrics?.sortino_ratio)} />
-            <MetricCell label="Max Drawdown" value={metrics?.max_drawdown != null ? formatPercent(metrics.max_drawdown) : "—"} />
-            <MetricCell label="Expense Ratio" value={metrics?.expense_ratio ? `${metrics.expense_ratio.toFixed(2)}%` : "—"} />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <MetricCell label="Alpha" value={metrics?.alpha != null ? formatPercent(metrics.alpha) : "—"} info={METRIC_INFO.alpha} />
+            <MetricCell label="Beta" value={fmtRatio(metrics?.beta)} info={METRIC_INFO.beta} />
+            <MetricCell label="Sharpe" value={fmtRatio(metrics?.sharpe_ratio)} info={METRIC_INFO.sharpe} />
+            <MetricCell label="Sortino" value={fmtRatio(metrics?.sortino_ratio)} info={METRIC_INFO.sortino} />
+            <MetricCell label="Treynor" value={metrics?.treynor_ratio != null ? formatPercent(metrics.treynor_ratio) : "—"} info={METRIC_INFO.treynor} />
+            <MetricCell label="Max Drawdown" value={metrics?.max_drawdown != null ? formatPercent(metrics.max_drawdown) : "—"} info={METRIC_INFO.maxDrawdown} />
+            <MetricCell label="Expense Ratio" value={metrics?.expense_ratio != null ? `${metrics.expense_ratio.toFixed(2)}%` : "—"} info={METRIC_INFO.expense} />
+            <MetricCell label="Turnover Ratio" value={metrics?.turnover_ratio != null ? `${metrics.turnover_ratio.toFixed(2)}%` : "—"} info={METRIC_INFO.turnover} />
           </div>
         </div>
 
@@ -165,10 +169,13 @@ function StatCard({
   );
 }
 
-function MetricCell({ label, value }: { label: string; value: string }) {
+function MetricCell({ label, value, info }: { label: string; value: string; info?: string }) {
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3">
-      <p className="text-[var(--text-secondary)] text-xs mb-1">{label}</p>
+      <p className="text-[var(--text-secondary)] text-xs mb-1">
+        {label}
+        {info && <InfoTip text={info} />}
+      </p>
       <p className="tabular-nums text-base font-semibold text-[var(--text-primary)]">{value}</p>
     </div>
   );

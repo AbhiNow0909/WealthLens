@@ -25,6 +25,7 @@ from agents.nodes.analytics import (
     compute_rolling_returns,
     compute_sharpe,
     compute_sortino,
+    compute_treynor,
     compute_trailing_return,
     compute_xirr,
     daily_returns,
@@ -140,6 +141,7 @@ def _compute_one_fund(
     alpha, beta = compute_alpha_beta(fund_returns, benchmark_returns)
     sharpe = compute_sharpe(fund_returns)
     sortino = compute_sortino(fund_returns)
+    treynor = compute_treynor(fund_returns, beta)
     max_dd = compute_max_drawdown(nav_series)
 
     # XIRR from this fund's cashflows
@@ -155,8 +157,12 @@ def _compute_one_fund(
         "beta": _num(beta),
         "sharpe_ratio": _num(sharpe),
         "sortino_ratio": _num(sortino),
+        "treynor_ratio": _pct(treynor),
         "max_drawdown": _pct(max_dd),
-        "expense_ratio": 0.0,  # not available from MFApi; placeholder for Step 5
+        # Expense & turnover are fund-factsheet figures, not derivable from NAV
+        # history — surfaced as None (UI shows "—") until a data source is added.
+        "expense_ratio": None,
+        "turnover_ratio": None,
     }
 
 
@@ -178,8 +184,10 @@ def _persist_metrics(user_id: str, metrics: dict) -> None:
         "beta": metrics["beta"],
         "sharpe_ratio": metrics["sharpe_ratio"],
         "sortino_ratio": metrics["sortino_ratio"],
+        "treynor_ratio": metrics.get("treynor_ratio"),
         "max_drawdown": metrics["max_drawdown"],
         "expense_ratio": metrics["expense_ratio"],
+        "turnover_ratio": metrics.get("turnover_ratio"),
         "computed_at": "now()",
     }
     try:

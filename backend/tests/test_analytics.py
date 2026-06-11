@@ -19,6 +19,7 @@ from agents.nodes.analytics import (
     compute_rolling_returns,
     compute_sharpe,
     compute_sortino,
+    compute_treynor,
     compute_trailing_return,
     compute_xirr,
 )
@@ -183,3 +184,25 @@ def test_sortino_only_penalises_downside():
 def test_sortino_zero_when_no_downside():
     s = pd.Series([0.02, 0.03, 0.01, 0.04])  # all above rf/252 → no downside deviation
     assert compute_sortino(s) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Treynor
+# ---------------------------------------------------------------------------
+
+def test_treynor_matches_manual_formula():
+    returns = pd.Series([0.001, -0.0005, 0.0012, 0.0008, -0.0003])
+    beta = 1.25
+    rf = 0.065
+    annual_return = returns.mean() * 252
+    expected = (annual_return - rf) / beta
+    assert compute_treynor(returns, beta, rf) == pytest.approx(expected, rel=1e-9)
+
+
+def test_treynor_zero_when_beta_is_zero():
+    s = pd.Series([0.001, 0.002, -0.001])
+    assert compute_treynor(s, 0.0) == 0.0
+
+
+def test_treynor_zero_when_insufficient_data():
+    assert compute_treynor(pd.Series([0.01]), 1.0) == 0.0
