@@ -167,31 +167,37 @@ export default function CompareClient() {
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="text-xs border-b border-[var(--border)]">
-                        <th className="text-left px-3 py-2 font-medium text-[var(--text-secondary)]">Metric</th>
-                        {metrics.map((m) => (
-                          <th key={m.isin} className="text-right px-3 py-2 font-medium">
-                            <div className="flex items-center justify-end gap-2">
-                              <span
-                                className="w-2 h-2 rounded-full shrink-0"
-                                style={{ backgroundColor: colorFor(m.isin) }}
-                              />
-                              <span className="text-[var(--text-primary)] max-w-[120px] truncate" title={m.scheme_name}>
-                                {m.scheme_name}
-                              </span>
-                            </div>
+                        <th className="text-left px-3 py-2 font-medium text-[var(--text-secondary)]">Fund</th>
+                        {METRIC_ROWS.map((row) => (
+                          <th
+                            key={row.label}
+                            className="text-right px-3 py-2 font-medium text-[var(--text-secondary)] whitespace-nowrap"
+                          >
+                            {row.label}
+                            <InfoTip text={row.info} />
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {METRIC_ROWS.map((row) => (
-                        <tr key={row.label} className="border-b border-[var(--border)]">
-                          <td className="px-3 py-2.5 text-[var(--text-secondary)] whitespace-nowrap">
-                            {row.label}
-                            <InfoTip text={row.info} />
+                      {metrics.map((m) => (
+                        <tr key={m.isin} className="border-b border-[var(--border)]">
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: colorFor(m.isin) }}
+                              />
+                              <span className="text-[var(--text-primary)] max-w-[180px] truncate" title={m.scheme_name}>
+                                {m.scheme_name}
+                              </span>
+                            </div>
                           </td>
-                          {metrics.map((m) => (
-                            <td key={m.isin} className="px-3 py-2.5 text-right tabular-nums text-[var(--text-primary)]">
+                          {METRIC_ROWS.map((row) => (
+                            <td
+                              key={row.label}
+                              className="px-3 py-2.5 text-right tabular-nums text-[var(--text-primary)]"
+                            >
                               {row.fmt(m)}
                             </td>
                           ))}
