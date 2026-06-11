@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  /* Dark theme (default) */
   --bg: #0F1117;
   --surface: #1A1D27;
   --border: #2A2D3A;
@@ -10,6 +11,19 @@
   --warn: #F59E0B;
   --text-primary: #F1F5F9;
   --text-secondary: #94A3B8;
+}
+
+:root[data-theme="light"] {
+  /* Light theme */
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --border: #E2E8F0;
+  --accent: #2563EB;
+  --gain: #16A34A;
+  --loss: #DC2626;
+  --warn: #D97706;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
 }
 
 @theme inline {

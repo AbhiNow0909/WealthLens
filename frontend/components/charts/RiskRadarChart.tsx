@@ -73,8 +73,8 @@ export default function RiskRadarChart({ funds, colors }: Props) {
   return (
     <ResponsiveContainer width="100%" height={360}>
       <RadarChart data={data} outerRadius="72%">
-        <PolarGrid stroke="#2A2D3A" />
-        <PolarAngleAxis dataKey="metric" tick={{ fill: "#94A3B8", fontSize: 12 }} />
+        <PolarGrid stroke="var(--border)" />
+        <PolarAngleAxis dataKey="metric" tick={{ fill: "var(--text-secondary)", fontSize: 12 }} />
         {funds.map((f, i) => (
           <Radar
             key={f.isin}

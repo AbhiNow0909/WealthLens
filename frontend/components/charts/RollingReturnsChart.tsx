@@ -58,23 +58,23 @@ export default function RollingReturnsChart({ data }: { data: RollingReturnPoint
             <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid stroke="#2A2D3A" strokeOpacity={0.2} vertical={false} />
+        <CartesianGrid stroke="var(--border)" strokeOpacity={0.5} vertical={false} />
         <XAxis
           dataKey="date"
-          tick={{ fill: "#94A3B8", fontSize: 11 }}
+          tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
           tickLine={false}
-          axisLine={{ stroke: "#2A2D3A" }}
+          axisLine={{ stroke: "var(--border)" }}
           minTickGap={48}
           tickFormatter={(d: string) => d.slice(0, 7)}
         />
         <YAxis
-          tick={{ fill: "#94A3B8", fontSize: 11 }}
+          tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
           tickLine={false}
           axisLine={false}
           tickFormatter={(v: number) => `${v.toFixed(0)}%`}
           width={48}
         />
-        <ReferenceLine y={0} stroke="#2A2D3A" />
+        <ReferenceLine y={0} stroke="var(--border)" />
         <Tooltip content={<CustomTooltip />} />
         <Area
           type="monotone"
