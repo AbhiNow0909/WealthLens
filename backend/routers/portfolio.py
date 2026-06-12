@@ -179,12 +179,27 @@ async def upload_cas(
         except Exception as exc:
             logger.warning("Failed to upsert holding %s: %s", key, exc)
 
-    # Insert transactions — kept per-folio (transactions table is folio-scoped)
-    total_transactions = 0
+    # Insert transactions — idempotent. A unique constraint on
+    # (user_id, isin, folio_number, transaction_date, transaction_type, amount, units)
+    # plus upsert/ignore-duplicates means re-uploading the same CAS never creates
+    # duplicate rows. We also de-dupe in-memory so a single batch can't conflict
+    # with itself.
+    TXN_CONFLICT = (
+        "user_id,isin,folio_number,transaction_date,transaction_type,amount,units"
+    )
+    seen_txns: set = set()
+    txn_rows: list[dict] = []
     for h in cas.holdings:
         isin_key = h.isin or f"UNKNOWN_{h.folio_number}"
         for t in h.transactions:
-            txn_data = {
+            key = (
+                isin_key, h.folio_number, t.transaction_date,
+                t.transaction_type, t.amount, t.units,
+            )
+            if key in seen_txns:
+                continue
+            seen_txns.add(key)
+            txn_rows.append({
                 "user_id": user_id,
                 "isin": isin_key,
                 "folio_number": h.folio_number,
@@ -193,12 +208,25 @@ async def upload_cas(
                 "amount": t.amount,
                 "units": t.units,
                 "nav": t.nav,
-            }
-            try:
-                supabase.table("transactions").insert(txn_data).execute()
-                total_transactions += 1
-            except Exception:
-                pass  # likely a duplicate — skip silently
+            })
+
+    for i in range(0, len(txn_rows), 500):
+        batch = txn_rows[i : i + 500]
+        try:
+            supabase.table("transactions").upsert(
+                batch, on_conflict=TXN_CONFLICT, ignore_duplicates=True
+            ).execute()
+        except Exception as exc:
+            # The unique constraint (migration 003) may not be applied yet —
+            # fall back to per-row inserts so uploads still work. Read-time
+            # de-duplication keeps analytics correct in the meantime.
+            logger.warning("txn upsert failed at batch %d (constraint missing?): %s", i, exc)
+            for r in batch:
+                try:
+                    supabase.table("transactions").insert(r).execute()
+                except Exception:
+                    pass
+    total_transactions = len(txn_rows)
 
     # 5. Mark upload as parsed and delete the PDF from storage
     supabase.table("cas_uploads").update({
