@@ -4,6 +4,8 @@ from services.auth_middleware import get_current_user
 from services.analytics_service import (
     get_all_fund_metrics,
     get_fund_metrics,
+    get_fund_performance,
+    get_nav_series,
     get_rolling_returns,
     get_trailing_returns_table,
 )
@@ -37,6 +39,26 @@ async def get_fund_rolling_returns(
 ):
     """Rolling return time series for a fund's detail chart, over the given window."""
     return await get_rolling_returns(isin, window)
+
+
+@router.get("/{isin}/nav-series")
+async def get_fund_nav_series(
+    isin: str,
+    time_range: str = Query("1y", alias="range", description="1m | 3m | 6m | 1y | 3y | max"),
+    user: dict = Depends(get_current_user),
+):
+    """NAV price series for a fund's detail chart, over the given range."""
+    return await get_nav_series(isin, time_range)
+
+
+@router.get("/{isin}/performance")
+async def get_fund_performance_series(
+    isin: str,
+    time_range: str = Query("1y", alias="range", description="1m | 3m | 6m | 1y | 3y | max"),
+    user: dict = Depends(get_current_user),
+):
+    """Invested-vs-value time series for a fund's detail chart, over the given range."""
+    return await get_fund_performance(user["id"], isin, time_range)
 
 
 @router.get("/{isin}")

@@ -252,16 +252,28 @@ async def get_nav_history(user: dict = Depends(get_current_user)):
         return {}
 
     cutoff = (date.today() - timedelta(days=365)).isoformat()
-    rows = (
-        supabase.table("nav_history")
-        .select("isin,nav_date,nav")
-        .in_("isin", isins)
-        .gte("nav_date", cutoff)
-        .order("nav_date")
-        .execute()
-        .data
-        or []
-    )
+
+    # Page past Supabase's 1000-row cap — across many funds a year of daily NAVs
+    # easily exceeds 1000, which would otherwise truncate most sparklines.
+    rows: list[dict] = []
+    start = 0
+    page = 1000
+    while True:
+        chunk = (
+            supabase.table("nav_history")
+            .select("isin,nav_date,nav")
+            .in_("isin", isins)
+            .gte("nav_date", cutoff)
+            .order("nav_date")
+            .range(start, start + page - 1)
+            .execute()
+            .data
+            or []
+        )
+        rows.extend(chunk)
+        if len(chunk) < page:
+            break
+        start += page
 
     history: dict[str, list[dict]] = {isin: [] for isin in isins}
     for r in rows:

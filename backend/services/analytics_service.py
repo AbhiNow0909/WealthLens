@@ -64,30 +64,44 @@ def _num(value: Optional[float], decimals: int = 4) -> Optional[float]:
 # Data loading
 # ---------------------------------------------------------------------------
 
-def _load_nav_series(isin: str) -> pd.Series:
+_PAGE = 1000  # Supabase/PostgREST returns at most 1000 rows per request
+
+
+def _fetch_all(table: str, columns: str, eq_col: str, eq_val: str, order_col: str) -> list[dict]:
+    """
+    Fetch ALL matching rows, paging past Supabase's 1000-row response cap.
+    Without this, ordered-ascending queries silently drop the newest rows for
+    funds with more than 1000 NAV points (years of daily history).
+    """
     supabase = get_supabase()
-    rows = (
-        supabase.table("nav_history")
-        .select("nav_date,nav")
-        .eq("isin", isin)
-        .order("nav_date")
-        .execute()
-        .data
-        or []
-    )
+    rows: list[dict] = []
+    start = 0
+    while True:
+        chunk = (
+            supabase.table(table)
+            .select(columns)
+            .eq(eq_col, eq_val)
+            .order(order_col)
+            .range(start, start + _PAGE - 1)
+            .execute()
+            .data
+            or []
+        )
+        rows.extend(chunk)
+        if len(chunk) < _PAGE:
+            break
+        start += _PAGE
+    return rows
+
+
+def _load_nav_series(isin: str) -> pd.Series:
+    rows = _fetch_all("nav_history", "nav_date,nav", "isin", isin, "nav_date")
     return nav_rows_to_series(rows)
 
 
 def _load_benchmark_series() -> pd.Series:
-    supabase = get_supabase()
-    rows = (
-        supabase.table("benchmark_history")
-        .select("price_date,close_price")
-        .eq("index_name", BENCHMARK_INDEX)
-        .order("price_date")
-        .execute()
-        .data
-        or []
+    rows = _fetch_all(
+        "benchmark_history", "price_date,close_price", "index_name", BENCHMARK_INDEX, "price_date"
     )
     # Reuse nav_rows_to_series by renaming columns
     normalized = [{"nav_date": r["price_date"], "nav": r["close_price"]} for r in rows]
@@ -116,7 +130,26 @@ def _load_transactions(user_id: str, isin: Optional[str] = None) -> list[dict]:
     )
     if isin:
         query = query.eq("isin", isin)
-    return query.order("transaction_date").execute().data or []
+    rows = query.order("transaction_date").execute().data or []
+
+    # De-duplicate: re-uploading the same CAS inserts identical transaction rows.
+    # Two rows with the same isin/date/type/amount/units are duplicates, not two
+    # genuine same-day trades — drop the repeats so sums (invested, XIRR) are correct.
+    seen: set = set()
+    deduped: list[dict] = []
+    for r in rows:
+        key = (
+            r.get("isin"),
+            str(r.get("transaction_date")),
+            r.get("transaction_type"),
+            float(r.get("amount") or 0),
+            float(r.get("units") or 0),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(r)
+    return deduped
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +248,116 @@ async def get_fund_metrics(user_id: str, isin: str) -> dict:
 
 # Supported rolling-window labels → calendar days
 ROLLING_WINDOWS = {"1m": 30, "3m": 91, "6m": 182, "1y": 365, "3y": 1095}
+
+# NAV price-chart ranges → calendar days ("max" = full history)
+NAV_RANGES = {"1m": 30, "3m": 91, "6m": 182, "1y": 365, "3y": 1095, "max": None}
+
+
+async def get_nav_series(isin: str, time_range: str = "1y") -> list[dict]:
+    """
+    NAV price series for a fund over the given range (1m/3m/6m/1y/3y/max),
+    downsampled to ~300 points. Returns [{nav_date, nav}] ascending by date.
+    """
+    series = _load_nav_series(isin)
+    if series.empty:
+        return []
+
+    days = NAV_RANGES.get(time_range.lower(), 365)
+    if days is not None:
+        cutoff = series.index[-1] - pd.Timedelta(days=days)
+        series = series[series.index >= cutoff]
+
+    # Downsample wide ranges so the payload/chart stays light, keeping the last
+    if len(series) > 300:
+        step = len(series) // 300 + 1
+        idx = list(range(0, len(series), step))
+        if idx[-1] != len(series) - 1:
+            idx.append(len(series) - 1)
+        series = series.iloc[idx]
+
+    return [
+        {"nav_date": d.strftime("%Y-%m-%d"), "nav": round(float(v), 4)}
+        for d, v in series.items()
+    ]
+
+
+def _unit_delta(txn: dict) -> float:
+    u = float(txn.get("units") or 0)
+    return -u if txn.get("transaction_type") in ("redemption", "switch_out") else u
+
+
+def _cost_delta(txn: dict) -> float:
+    """Net contribution: purchases add, redemptions subtract, dividends ignored."""
+    a = float(txn.get("amount") or 0)
+    ttype = txn.get("transaction_type")
+    if ttype in ("purchase", "switch_in"):
+        return a
+    if ttype in ("redemption", "switch_out"):
+        return -a
+    return 0.0
+
+
+async def get_fund_performance(user_id: str, isin: str, time_range: str = "1y") -> list[dict]:
+    """
+    Invested-vs-value time series for a fund:
+      - value    = cumulative units held on that date × NAV
+      - invested = cumulative net amount contributed up to that date
+
+    Pre-statement holdings (when the CAS history is partial) are seeded as an
+    opening position so the series ENDS at the true units_held / invested_value.
+    Returns [{date, invested, value}] over the requested range.
+    """
+    series = _load_nav_series(isin)
+    if series.empty:
+        return []
+
+    holding = next((h for h in _load_holdings(user_id) if h["isin"] == isin), None)
+    units_held = float(holding.get("units_held") or 0) if holding else 0.0
+    invested_value = float(holding.get("invested_value") or 0) if holding else 0.0
+
+    txns = _load_transactions(user_id, isin)
+    parsed = sorted(
+        (
+            (str(t.get("transaction_date"))[:10], _unit_delta(t), _cost_delta(t))
+            for t in txns
+            if t.get("transaction_date")
+        ),
+        key=lambda x: x[0],
+    )
+
+    # Opening position = current totals minus everything we have transactions for
+    opening_units = max(units_held - sum(p[1] for p in parsed), 0.0)
+    opening_cost = max(invested_value - sum(p[2] for p in parsed), 0.0)
+
+    running_units = opening_units
+    running_cost = opening_cost
+    ti = 0
+    rows: list[tuple] = []
+    for d, nav in series.items():
+        dstr = d.strftime("%Y-%m-%d")
+        while ti < len(parsed) and parsed[ti][0] <= dstr:
+            running_units += parsed[ti][1]
+            running_cost += parsed[ti][2]
+            ti += 1
+        rows.append((d, dstr, running_cost, running_units * float(nav)))
+
+    # Slice to range (after accumulating, so the range start has correct totals)
+    days = NAV_RANGES.get(time_range.lower(), 365)
+    if days is not None:
+        cutoff = series.index[-1] - pd.Timedelta(days=days)
+        rows = [r for r in rows if r[0] >= cutoff]
+
+    if len(rows) > 300:
+        step = len(rows) // 300 + 1
+        sampled = rows[::step]
+        if sampled[-1] is not rows[-1]:
+            sampled.append(rows[-1])  # always keep the latest point (current totals)
+        rows = sampled
+
+    return [
+        {"date": dstr, "invested": round(cost, 2), "value": round(val, 2)}
+        for (_, dstr, cost, val) in rows
+    ]
 
 
 async def get_rolling_returns(isin: str, window: str = "1y") -> list[dict]:

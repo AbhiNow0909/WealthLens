@@ -39,6 +39,12 @@ export type RollingWindow = "1m" | "3m" | "6m" | "1y" | "3y";
 export const getRollingReturns = (isin: string, window: RollingWindow = "1y") =>
   apiFetch<RollingReturnPoint[]>(`/analytics/${isin}/rolling-returns?window=${window}`);
 
+export type ChartRange = "1m" | "3m" | "6m" | "1y" | "3y" | "max";
+export const getNavSeries = (isin: string, range: ChartRange = "1y") =>
+  apiFetch<NavPoint[]>(`/analytics/${isin}/nav-series?range=${range}`);
+export const getFundPerformance = (isin: string, range: ChartRange = "1y") =>
+  apiFetch<PerformancePoint[]>(`/analytics/${isin}/performance?range=${range}`);
+
 // --- Agent ---
 export const runAgent = (prompt: string) =>
   apiFetch<AgentResponse>("/agent/run", {
@@ -78,6 +84,12 @@ export interface PortfolioSummary {
 export interface NavPoint {
   nav_date: string;
   nav: number;
+}
+
+export interface PerformancePoint {
+  date: string;
+  invested: number;
+  value: number;
 }
 
 export interface FundMetrics {
