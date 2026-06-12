@@ -10,6 +10,7 @@ import {
   type Holding,
   type FundMetrics,
   type RollingReturnPoint,
+  type RollingWindow,
   type TrailingReturnsRow,
 } from "@/lib/api";
 import { formatCompactCurrency, formatPercent } from "@/lib/formatters";
@@ -18,10 +19,20 @@ import TrailingReturnsTable from "@/components/charts/TrailingReturnsTable";
 import InfoTip from "@/components/ui/InfoTip";
 import { METRIC_INFO } from "@/lib/metricInfo";
 
+const ROLLING_WINDOW_OPTIONS: RollingWindow[] = ["1m", "3m", "6m", "1y", "3y"];
+const ROLLING_WINDOW_LABELS: Record<RollingWindow, string> = {
+  "1m": "1M",
+  "3m": "3M",
+  "6m": "6M",
+  "1y": "1Y",
+  "3y": "3Y",
+};
+
 export default function FundDetailClient({ isin }: { isin: string }) {
   const [holding, setHolding] = useState<Holding | null>(null);
   const [metrics, setMetrics] = useState<FundMetrics | null>(null);
   const [rolling, setRolling] = useState<RollingReturnPoint[]>([]);
+  const [rollingWindow, setRollingWindow] = useState<RollingWindow>("1y");
   const [trailing, setTrailing] = useState<TrailingReturnsRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +48,6 @@ export default function FundDetailClient({ isin }: { isin: string }) {
         setHolding(holdings.find((h) => h.isin === isin) ?? null);
         setMetrics(m);
         setTrailing(t);
-        getRollingReturns(isin).then(setRolling).catch(() => setRolling([]));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load fund");
       } finally {
@@ -45,6 +55,14 @@ export default function FundDetailClient({ isin }: { isin: string }) {
       }
     })();
   }, [isin]);
+
+  // Rolling-returns chart — refetches whenever the fund or the selected window
+  // changes. Async setState in the callback is fine (not a synchronous effect).
+  useEffect(() => {
+    getRollingReturns(isin, rollingWindow)
+      .then(setRolling)
+      .catch(() => setRolling([]));
+  }, [isin, rollingWindow]);
 
   if (loading) {
     return (
@@ -127,8 +145,27 @@ export default function FundDetailClient({ isin }: { isin: string }) {
 
         {/* Rolling returns chart */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-          <h2 className="text-sm font-medium text-[var(--text-primary)] mb-4">Rolling 1-Year Returns</h2>
-          <RollingReturnsChart data={rolling} />
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <h2 className="text-sm font-medium text-[var(--text-primary)]">
+              Rolling {ROLLING_WINDOW_LABELS[rollingWindow]} Returns
+            </h2>
+            <div className="flex gap-1 rounded-lg border border-[var(--border)] p-0.5">
+              {ROLLING_WINDOW_OPTIONS.map((w) => (
+                <button
+                  key={w}
+                  onClick={() => setRollingWindow(w)}
+                  className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
+                    rollingWindow === w
+                      ? "bg-[var(--accent)] text-white"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {ROLLING_WINDOW_LABELS[w]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <RollingReturnsChart data={rolling} windowLabel={ROLLING_WINDOW_LABELS[rollingWindow]} />
         </div>
 
         {/* Trailing returns table */}

@@ -213,13 +213,19 @@ async def get_fund_metrics(user_id: str, isin: str) -> dict:
     return metrics
 
 
-async def get_rolling_returns(isin: str) -> list[dict]:
+# Supported rolling-window labels → calendar days
+ROLLING_WINDOWS = {"1m": 30, "3m": 91, "6m": 182, "1y": 365, "3y": 1095}
+
+
+async def get_rolling_returns(isin: str, window: str = "1y") -> list[dict]:
     """
-    Rolling 1-year return time series for a fund (for the fund detail chart).
+    Rolling return time series for a fund over the given window (1m/3m/6m/1y/3y).
+    Each point is the trailing-window return ending on that date.
     Returns [{date: 'YYYY-MM-DD', value: percent}] sorted ascending by date.
     """
+    window_days = ROLLING_WINDOWS.get(window.lower(), 365)
     nav_series = _load_nav_series(isin)
-    series = compute_rolling_returns(nav_series, window_days=365)
+    series = compute_rolling_returns(nav_series, window_days=window_days)
     return [
         {"date": d.strftime("%Y-%m-%d"), "value": round(r * 100.0, 4)}
         for d, r in series

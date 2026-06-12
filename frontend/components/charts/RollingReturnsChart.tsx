@@ -18,10 +18,12 @@ function CustomTooltip({
   active,
   payload,
   label,
+  windowLabel,
 }: {
   active?: boolean;
   payload?: Array<{ value: number }>;
   label?: string;
+  windowLabel: string;
 }) {
   if (!active || !payload?.length) return null;
   const v = payload[0].value;
@@ -34,17 +36,23 @@ function CustomTooltip({
         }`}
       >
         {v >= 0 ? "+" : ""}
-        {v.toFixed(2)}% (1Y rolling)
+        {v.toFixed(2)}% ({windowLabel} rolling)
       </p>
     </div>
   );
 }
 
-export default function RollingReturnsChart({ data }: { data: RollingReturnPoint[] }) {
+export default function RollingReturnsChart({
+  data,
+  windowLabel = "1Y",
+}: {
+  data: RollingReturnPoint[];
+  windowLabel?: string;
+}) {
   if (!data || data.length < 2) {
     return (
       <p className="text-sm text-[var(--text-secondary)] py-12 text-center">
-        Not enough price history for rolling returns (needs 1+ year).
+        Not enough price history for this rolling window.
       </p>
     );
   }
@@ -75,7 +83,7 @@ export default function RollingReturnsChart({ data }: { data: RollingReturnPoint
           width={48}
         />
         <ReferenceLine y={0} stroke="var(--border)" />
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={<CustomTooltip windowLabel={windowLabel} />} />
         <Area
           type="monotone"
           dataKey="value"

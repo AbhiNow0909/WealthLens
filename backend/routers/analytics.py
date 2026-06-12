@@ -30,9 +30,13 @@ async def compare_funds(
 
 
 @router.get("/{isin}/rolling-returns")
-async def get_fund_rolling_returns(isin: str, user: dict = Depends(get_current_user)):
-    """Rolling 1-year return time series for a fund's detail chart."""
-    return await get_rolling_returns(isin)
+async def get_fund_rolling_returns(
+    isin: str,
+    window: str = Query("1y", description="Rolling window: 1m | 3m | 6m | 1y | 3y"),
+    user: dict = Depends(get_current_user),
+):
+    """Rolling return time series for a fund's detail chart, over the given window."""
+    return await get_rolling_returns(isin, window)
 
 
 @router.get("/{isin}")

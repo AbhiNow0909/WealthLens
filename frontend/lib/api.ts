@@ -35,8 +35,9 @@ export const compareFunds = (isins: string[]) =>
   apiFetch<FundMetrics[]>(`/analytics/compare?isins=${isins.join(",")}`);
 export const getTrailingReturns = () =>
   apiFetch<TrailingReturnsRow[]>("/analytics/trailing-returns");
-export const getRollingReturns = (isin: string) =>
-  apiFetch<RollingReturnPoint[]>(`/analytics/${isin}/rolling-returns`);
+export type RollingWindow = "1m" | "3m" | "6m" | "1y" | "3y";
+export const getRollingReturns = (isin: string, window: RollingWindow = "1y") =>
+  apiFetch<RollingReturnPoint[]>(`/analytics/${isin}/rolling-returns?window=${window}`);
 
 // --- Agent ---
 export const runAgent = (prompt: string) =>
